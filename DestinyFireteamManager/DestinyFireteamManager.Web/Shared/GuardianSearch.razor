@@ -1,0 +1,80 @@
+﻿@using DestinyFireteamManager.Web.Models.BungieNet
+@using DestinyFireteamManager.Web.Services
+@implements IDisposable
+
+@inject IBungieNetApiService _bungieNetApiService
+
+<div class="search-container">
+    <input @bind="SearchTerm" @bind:event="oninput" @onblur="HideDropdown" placeholder="Type to search..." />
+    @if (ShowDropdown)
+    {
+        <ul class="dropdown">
+            @foreach (var suggestion in Suggestions)
+            {
+                <li @onclick="() => SelectSuggestion(suggestion)">@suggestion</li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    private string _searchTerm;
+    private bool ShowDropdown { get; set; }
+    private List<string> Suggestions { get; set; } = new List<string>();
+
+    [Parameter]
+    public string SearchTerm
+    {
+        get => _searchTerm;
+        set
+        {
+            if (_searchTerm != value)
+            {
+                _searchTerm = value;
+                OnSearchTermChanged();
+            }
+        }
+    }
+
+    private async Task OnSearchTermChanged()
+    {
+        if (string.IsNullOrEmpty(SearchTerm) || SearchTerm.Length <= 3)
+        {
+            ShowDropdown = false;
+            Suggestions.Clear();
+        }
+        else
+        {
+            ShowDropdown = true;
+            Suggestions = await GetSuggestions(SearchTerm);
+            StateHasChanged();
+        }
+    }
+
+    private async Task<List<string>> GetSuggestions(string term)
+    {
+        BungieNetResponse<UserSearchResponse> result = await _bungieNetApiService.GetUser(term);
+        return result.Response.SearchResults.Select(x => $"{x.BungieGlobalDisplayName}#{x.BungieGlobalDisplayNameCode:D4}").ToList();
+    }
+
+    private void SelectSuggestion(string suggestion)
+    {
+        SearchTerm = suggestion;
+        ShowDropdown = false;
+    }
+
+    private void HideDropdown()
+    {
+        // Delay hiding the dropdown to allow item click to be registered
+        Task.Delay(200).ContinueWith(t => InvokeAsync(() =>
+        {
+            ShowDropdown = false;
+            StateHasChanged();
+        }));
+    }
+
+    public void Dispose()
+    {
+        // Cleanup if necessary
+    }
+}
